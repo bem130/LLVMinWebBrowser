@@ -1,49 +1,73 @@
 <html>
 <head>
-  <title>Run LLVM Assembly In Your Browser</title>
+  <meta charset="utf-8">
+  <script src="llvm-as.js"></script>
+  <script src="llvm-dis.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.47.0/min/vs/editor/editor.main.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.47.0/min/vs/loader.min.js"></script>
+  <script src="https://unpkg.com/wabt@1.0.32/index.js"></script>
 </head>
-<body onload="document.getElementById('the_output').value = ''">
-<h2>Run LLVM Assembly In Your Browser</h2>
-<p>
-  This is a demo of compiling and running <a href="http://llvm.org">LLVM</a> assembly in JavaScript.
-</p>
-<p>
-  Press the button to see it compile and run a tiny "hello world" program. You can also try modifying the LLVM assembly and pressing the button again - note though that <a href="http://llvm.org/docs/LangRef.html">LLVM assembly</a> is typed, so if you add characters to the string for example, you will need to adjust its length, both where it is defined and where it is used (otherwise you will get errors, which will show up in the output area).
-</p>
-<script src="llvm-as.js"></script>
-<script src="llvm-dis.js"></script>
+<body>
+  <div class="resizer_Hcontainer" id="mainarea" data-proportion="4:3">
+      <div class="resizer_content">
+          <div id="input" class="input"></div>
+          <button onclick="update()">Run</button>
+      </div>
+      <div class="resizer_splitter"></div>
+      <div class="resizer_content">
+          <div class="resizer_Vcontainer" data-proportion="4:3">
+              <div class="resizer_content">
+              </div>
+              <div class="resizer_splitter"></div>
+              <div class="resizer_content">
+                  <textarea id="output" class="output" readonly></textarea>
+              </div>
+          </div>
+      </div>
+  </div>
+</body>
 <script>
-  function process(input) {
-    try {
-      return llvmDis(llvmAs(input));
-    } catch (e) {
-      if (typeof e == 'string') {
-        return 'Error in compilation: ' + e;
-      } else {
-        throw e;
-      }
-    }
-  }
-</script>
-<hr>
-<textarea id="the_input" cols=90 rows=13 style="background-color: #eeeeff; border: 1px solid black; margin-top: 0.3em; margin-bottom: 0.3em">
-target triple = "i386-pc-linux-gnu"
-
-@.str = private constant [15 x i8] c"hello, world!\0A\00"
-
-define i32 @main() {
-entry:
-  %str = getelementptr inbounds [15 x i8]* @.str, i32 0, i32 0
-  %call = call i32 (i8*, ...)* @printf(i8* %str)
-  ret i32 1
+function resizer_Vcontainer_addEL (container,framesMin,callback=()=>{}) {
+    container.querySelector(":scope > .resizer_splitter").addEventListener("pointerdown",(e)=>{
+        let resizer = container.querySelector(":scope > .resizer_splitter").getBoundingClientRect();
+        let resizerW = resizer.bottom - resizer.top;
+        let resize = (e)=>{
+            let containerRect = container.getBoundingClientRect();
+            let y = ((n,min,max)=>{if (n<min) {n=min}else if (n>max) {n=max};return n;})(e.y-containerRect.y,framesMin,containerRect.height-resizerW-framesMin);
+            container.querySelectorAll(":scope > .resizer_content")[0].style.flexBasis = `${y}%`;
+            container.querySelectorAll(":scope > .resizer_content")[1].style.flexBasis = `${containerRect.height-resizerW-y}%`;
+            callback();
+        }
+        document.addEventListener("pointermove",resize,false);
+        document.addEventListener("pointerup",()=>{document.removeEventListener("pointermove",resize,false);},false);
+        e.target.setPointerCapture(e.pointerId);
+    });
+    let p = container.dataset["proportion"].split(":").map((x)=>{return Number(x);});
+    container.querySelectorAll(":scope > .resizer_content")[0].style.flexBasis = `${(p[0]*100/(p[0]+p[1]))}%`;
+    container.querySelectorAll(":scope > .resizer_content")[1].style.flexBasis = `${(p[1]*100/(p[0]+p[1]))}%`;
 }
-
-declare i32 @printf(i8*, ...)
-</textarea>
-<br>
-<textarea id="the_output" cols=90 rows=5 style="border: 1px solid black; margin-bottom: 0.6em">
-</textarea>
-<br>
+function resizer_Hcontainer_addEL (container,framesMin,callback=()=>{}) {
+    container.querySelector(":scope > .resizer_splitter").addEventListener("pointerdown",(e)=>{
+        let resizer = container.querySelector(":scope > .resizer_splitter").getBoundingClientRect();
+        let resizerW = resizer.right - resizer.left;
+        let resize = (e)=>{
+            let containerRect = container.getBoundingClientRect();
+            let x = ((n,min,max)=>{if (n<min) {n=min}else if (n>max) {n=max};return n;})(e.x-containerRect.x,framesMin,containerRect.width-resizerW-framesMin);
+            container.querySelectorAll(":scope > .resizer_content")[0].style.flexBasis = `${x}%`;
+            container.querySelectorAll(":scope > .resizer_content")[1].style.flexBasis = `${containerRect.width-resizerW-x}%`;
+            callback();
+        }
+        document.addEventListener("pointermove",resize,false);
+        document.addEventListener("pointerup",()=>{document.removeEventListener("pointermove",resize,false);},false);
+        e.target.setPointerCapture(e.pointerId);
+    });
+    let p = container.dataset["proportion"].split(":").map((x)=>{return Number(x);});
+    container.querySelectorAll(":scope > .resizer_content")[0].style.flexBasis = `${(p[0]*100/(p[0]+p[1]))}%`;
+    container.querySelectorAll(":scope > .resizer_content")[1].style.flexBasis = `${(p[1]*100/(p[0]+p[1]))}%`;
+}
+document.querySelectorAll(".resizer_Vcontainer").forEach((x)=>{resizer_Vcontainer_addEL(x,50);})
+document.querySelectorAll(".resizer_Hcontainer").forEach((x)=>{resizer_Hcontainer_addEL(x,50);})
+</script>
 <script>
   // emscripten stuff
   arguments = [];
@@ -54,7 +78,7 @@ declare i32 @printf(i8*, ...)
     compilerOutput += x;
   };
 
-  var outputElement = document.getElementById('the_output');
+  var outputElement = document.getElementById('output');
   function execute(ll) {
     compilerOutput = '';
     compile(ll);
@@ -75,34 +99,176 @@ declare i32 @printf(i8*, ...)
 
   // For generated code
   var Module = {};
+
+function fRead(filename) {
+  var hr = new XMLHttpRequest();
+  hr.open("GET", filename, false);
+  hr.send(null);
+  if (hr.status == 200 || hr.status == 304) {
+      return hr.responseText.replace(/\r\n/g, "\n");
+  }
+  else {
+      throw "err " + filename;
+  }
+};
+window.onload = ()=>{
+    input.setValue(fRead("sample.ll"));
+    update();
+}
+
+function update() {
+  outputElement.value = "";
+  doItAll(input.getValue());
+}
+require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.47.0/min/vs' } });
+
+require(["vs/editor/editor.main"], function () {
+  input = monaco.editor.create(document.querySelector("#input"),{
+      language: "llvm",
+      theme: "vs-dark",
+      automaticLayout: true,
+      wordWrap: false,
+      tabSize: 4,
+      fontSize: 12,
+  });
+});
+
+
+document.addEventListener("keydown",(e)=>{
+    console.log("keydown",e.keyCode)
+    if (e.keyCode == 82 && e.ctrlKey && !e.shiftKey) {
+        update();
+        e.preventDefault();
+    }
+},false);
+
 </script>
-<script src="compiler.js">
-</script>
+<script src="compiler.js"></script>
 <script>
-  function doItAll() {
-    var ll = process(document.getElementById('the_input').value);
+  function doItAll(value) {
+    var ll = process(value);
     if (ll && ll[0] != 'E') {
-      outputElement.style.backgroundColor = '#eeffee';
+      outputElement.style.backgroundColor = '#1e1e1e';
       execute(ll);
     } else {
-      outputElement.style.backgroundColor = '#ffe0e0';
+      outputElement.style.backgroundColor = '#4b2f36';
       outputElement.value = ll; // error message
     }
   }
+  function process(input) {
+    try {
+      return llvmDis(llvmAs(input));
+    } catch (e) {
+      if (typeof e == 'string') {
+        return 'Error in compilation: ' + e;
+      } else {
+        throw e;
+      }
+    }
+  }
 </script>
-
-<input value="compile and run" type="button" onclick="doItAll()">
-<hr>
-<p>
-  This demo works by using parts of the LLVM toolchain (llvm-dis and llvm-as), compiled by <a href="http://emscripten.org/">emscripten</a> from C++ to JavaScript, to check the assembly for errors and pretty-print it. Then the emscripten compiler (originally written in JavaScript, but ported from the normal batch/shell mode to the browser environment) is run on the output, and the code executed directly.
-</p>
-<p>
-  This demo was done as a fun hacking project over a holiday vacation, so there are some caveats: The generated code is not optimized at all, so benchmarking is pointless; if you want to benchmark, run emscripten normally with <code>-O2</code>. Compilation speed has also not been optimized at all. Also, this demo has hardly been tested and glues together several codebases in ways they were not originally intended, there might be things that do not work.
-</p>
-<p>
-  <code><b><a href="https://github.com/kripken/llvm.js">Source code</a></b></code>
-</p>
-<a href="https://github.com/kripken/llvm.js"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub"></a>
-</body>
 </html>
 
+
+<style>
+  body {
+      color: white;
+      background-color: rgb(0, 29, 54);
+      margin: 0;
+  }
+  button {
+      color: white;
+      background-color: rgb(49, 49, 49);
+      width: 100px;
+      height: 30px;
+      border-radius: 10px;
+      border: 1px solid gray;
+      margin: 5px;
+  }
+  .input {
+      height: calc(100% - 40px);
+  }
+  .output {
+      font-size: 12px;
+      color: white;
+      font-family: Consolas, "Courier New", monospace;
+      background-color: rgb(30, 30, 30);
+      width: calc(100% - 20px);
+      height: calc(100% - 20px);
+      outline: none;
+      border: none;
+      resize: none;
+      padding: 10px;
+      overflow: auto;
+  }
+  #hexviewer {
+      display: flex;
+      & table {
+          font-family: Courier, monospace;
+          height: fit-content;
+          & td {
+              padding-right: 3px;
+              padding-left: 3px;
+          }
+          & th {
+              color: rgba(255, 255, 255, 0.3);
+              user-select: none;
+          }
+      }
+  }
+  
+  #mainarea {
+      height: 100dvh;
+      width: 100dvw;
+  }
+</style>
+<style>
+
+/* resizer */
+.resizer_Vcontainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  & > .resizer_content {
+      min-height: 0px;
+      height: 100%;
+      overflow: hidden;
+      padding: 3px;
+  }
+  & > .resizer_splitter {
+      height: 5px;
+      margin: 2px;
+      width: calc(100% - 10px);
+      border-radius: 3px;
+      flex: none;
+      cursor: row-resize;
+      background-color: #7c7c7c;
+  }
+  & > .resizer_splitter:hover {
+      background-color: #acacac;
+  }
+}
+.resizer_Hcontainer {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  & > .resizer_content {
+      min-width: 0px;
+      width: 100%;
+      overflow: hidden;
+      padding: 3px;
+  }
+  & > .resizer_splitter {
+      width: 5px;
+      margin: 2px;
+      height: calc(100% - 10px);
+      border-radius: 3px;
+      flex: none;
+      cursor: col-resize;
+      background-color: #7c7c7c;
+  }
+  & > .resizer_splitter:hover {
+      background-color: #acacac;
+  }
+}
+</style>
